@@ -15,11 +15,14 @@ Adafruit_ILI9341 tft = Adafruit_ILI9341(CS,DC,RST);
 
 //Song Information
 
-int currentPosition = 30;
+int currentPosition = 0;
 int songDuration = 120;
 
 String songName = String("In The Morning");    
 String artistName = String("J Cole");    
+
+
+unsigned long previousTime = 0;
 
 void setup() {
   // put your setup code here, to run once:
@@ -42,7 +45,21 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-  drawProgressBar();
+  unsigned long currentTime = millis();
+
+  if (currentTime - previousTime >= 1000){
+    previousTime = currentTime;
+    if (currentPosition < songDuration){
+      currentPosition += 1;
+      drawCurrentSongProgress(songDuration, currentPosition);   
+      drawCurrentTimePosition();
+      Serial.println(currentPosition);
+      Serial.println(songDuration);
+    }
+  } 
+
+
+  
 
 }
 
@@ -50,6 +67,9 @@ void drawSpotifyScreen(){
   drawHeader();
   drawSongInformation(songName, artistName);
   drawProgressBar();
+  drawCurrentSongProgress(songDuration, currentPosition);
+  drawCurrentTimePosition();
+  drawCurrentSongDuration();
   drawControls();
 }
 
@@ -79,7 +99,6 @@ void drawHeader(){
 void drawSongInformation(String songName, String artistName){
 
   // draw current song artist Name
-
   tft.setTextSize(1);
 
   tft.setCursor(130, 90);
@@ -94,25 +113,33 @@ void drawSongInformation(String songName, String artistName){
 
 void drawProgressBar(){
 
+  // draw progress bar
+  tft.drawLine(20,150,300,150,ILI9341_WHITE);
+}
+
+void drawCurrentTimePosition(){
+
+  
+  int currentMinutes = currentPosition/60;
+  int currentSeconds = currentPosition%60;
+
+  tft.fillRect(70,170, 25,20, ILI9341_BLACK);
+
+   // draw current song current position
+  tft.setCursor(70, 170);
+
+  tft.setCursor(70, 170);
+  tft.print(currentMinutes);
+  tft.print(":");
+  tft.print(currentSeconds);
+
+}
+
+void drawCurrentSongDuration(){
 
   int songMinutes = songDuration/60;
   int songSeconds = songDuration%60;
 
-  int currentMinutes = currentPosition/60;
-  int currentSeconds = currentPosition%60;
-
-  // draw progress bar
-
-  tft.drawLine(20,150,300,150,ILI9341_WHITE);
-
-  drawCurrentSongProgress(songDuration, currentPosition);
-
-  // draw current song current position
-  tft.setCursor(70, 170);
-
-  tft.print(currentMinutes);
-  tft.print(":");
-  tft.print(currentSeconds);
   // draw current song duration
   tft.setCursor(220,  170);
 
@@ -120,12 +147,14 @@ void drawProgressBar(){
   tft.print(songMinutes);
   tft.print(":");
   tft.print(songSeconds);
+
 }
 
 void drawCurrentSongProgress(int songDuration, int currentPosition){
   
   // calculate and draw current progress bar
-  int progress = (280 * currentPosition) / songDuration; 
+  int progress = ((280 * currentPosition) / songDuration) + 20; 
+  Serial.println(progress);
 
   tft.drawLine(20,151,progress,151,ILI9341_WHITE);
 
