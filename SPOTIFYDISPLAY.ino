@@ -1,6 +1,7 @@
 #include <SPI.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_ILI9341.h>
+#include <XPT2046_Touchscreen.h>
 
 
 #define CS 10
@@ -11,6 +12,11 @@
 #define SCK 12
 #define MISO 13 
 
+
+#define touch_CS 7
+#define touch_IRQ 6
+
+XPT2046_Touchscreen ts(touch_CS,touch_IRQ);
 Adafruit_ILI9341 tft = Adafruit_ILI9341(CS,DC,RST);
 
 //Song Information
@@ -18,8 +24,12 @@ Adafruit_ILI9341 tft = Adafruit_ILI9341(CS,DC,RST);
 int currentPosition = 0;
 int songDuration = 120;
 
-String songName = String("In The Morning");    
-String artistName = String("J Cole");    
+String songName = "In The Morning";    
+String artistName = "J Cole";    
+
+
+// player state
+bool playerState = false;
 
 
 unsigned long previousTime = 0;
@@ -34,8 +44,13 @@ void setup() {
   // Start the Display
   tft.begin();
 
+  // initialize touchscreen 
+  ts.begin();
+
   //rotate display
   tft.setRotation(1);
+
+  ts.setRotation(1);
 
   drawSpotifyScreen();
  
@@ -45,16 +60,51 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
+
   unsigned long currentTime = millis();
+
+  if (ts.touched()) {
+    uint16_t x, y;
+    uint8_t z;
+
+    ts.readData(&x, &y, &z);
+
+    Serial.print("x = ");
+    Serial.print(x);
+    Serial.print(", y = ");
+    Serial.print(y);
+    Serial.print(", z = ");
+    Serial.println(z);
+}
+
+  if (Serial.available() > 0){
+    Serial.println(playerState);
+    char incoming = Serial.read();
+
+    if (incoming != -1 && incoming == 'p'){
+      playerState = !playerState;
+      updateControls();
+      Serial.println(playerState);
+    }
+  }
+
+  while (Serial.available() > 0){
+    Serial.read();
+  }
+
+  
+
+  // if one second has passed update song current Position and information 
 
   if (currentTime - previousTime >= 1000){
     previousTime = currentTime;
-    if (currentPosition < songDuration){
-      currentPosition += 1;
-      drawCurrentSongProgress(songDuration, currentPosition);   
-      drawCurrentTimePosition();
-      Serial.println(currentPosition);
-      Serial.println(songDuration);
+    if (playerState){
+      if (currentPosition < songDuration){
+        currentPosition += 1;
+        drawCurrentSongProgress(songDuration, currentPosition);   
+        drawCurrentTimePosition();
+        
+      }
     }
   } 
 
@@ -154,8 +204,6 @@ void drawCurrentSongProgress(int songDuration, int currentPosition){
   
   // calculate and draw current progress bar
   int progress = ((280 * currentPosition) / songDuration) + 20; 
-  Serial.println(progress);
-
   tft.drawLine(20,151,progress,151,ILI9341_WHITE);
 
 }
@@ -171,12 +219,9 @@ void drawControls(){
 
   tft.fillRect(107, 190, 3, 11,ILI9341_WHITE);
 
-  // Draw Pause Button
-
-  tft.fillRect(150, 190, 5, 10,ILI9341_WHITE);
-
-  tft.fillRect(160, 190, 5, 10,ILI9341_WHITE);
-
+  // Draw Pause or Play Button
+  tft.fillTriangle(160,195,150,190,150,200,ILI9341_WHITE);
+  
   // Draw Skip Forwards Button
   
   tft.fillTriangle(195,195,190,190,190,200,ILI9341_WHITE);
@@ -186,4 +231,18 @@ void drawControls(){
   tft.fillRect(200,190,3,11,ILI9341_WHITE);
 
 
+}
+
+void updateControls(){
+
+  tft.fillRect(140,190, 25,20, ILI9341_BLACK);
+
+  if (!playerState){     
+    tft.fillTriangle(160,195,150,190,150,200,ILI9341_WHITE);
+  }
+  else{
+    tft.fillRect(150, 190, 5, 10,ILI9341_WHITE);
+
+    tft.fillRect(160, 190, 5, 10,ILI9341_WHITE);
+  }
 }
