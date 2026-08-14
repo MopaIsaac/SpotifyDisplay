@@ -1,7 +1,9 @@
 #include <SPI.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_ILI9341.h>
-#include <XPT2046_Touchscreen.h>
+#include <vector>
+
+using namespace std;
 
 
 #define CS 10
@@ -12,27 +14,54 @@
 #define SCK 12
 #define MISO 13 
 
+// button Pins
 
-#define touch_CS 7
-#define touch_IRQ 6
+const int playButton = 35;
+bool  playButtonState = HIGH ;
+bool lastPlayButtonState = HIGH;
+unsigned long lastPlayDebounceTime = 0;
+unsigned long debouncePlayDelay = 50;
 
-XPT2046_Touchscreen ts(touch_CS,touch_IRQ);
+
+const int nextButton = 36;
+bool  nextButtonState = HIGH ;
+bool lastNextButtonState = HIGH;
+unsigned long lastNextDebounceTime = 0;
+unsigned long debounceNextDelay = 50;
+
+const int prevButton = 37;
+bool  prevButtonState = HIGH ;
+bool lastPrevButtonState = HIGH;
+unsigned long lastPrevDebounceTime = 0;
+unsigned long debouncePrevDelay = 50;
+
+
+// Display Object
 Adafruit_ILI9341 tft = Adafruit_ILI9341(CS,DC,RST);
 
+//Current Song in Queue
+int currentSong = 0;
+
 //Song Information
-
 int currentPosition = 0;
-int songDuration = 120;
-
-String songName = "In The Morning";    
-String artistName = "J Cole";    
-
 
 // player state
 bool playerState = false;
 
 
 unsigned long previousTime = 0;
+
+// song structure
+struct songInformation{
+  String songName;
+  String artistName;
+  int songDuration;
+
+};
+
+// vector object to store songs 
+std::vector<songInformation> songQueue;
+
 
 void setup() {
   // put your setup code here, to run once:
@@ -44,38 +73,100 @@ void setup() {
   // Start the Display
   tft.begin();
 
-  // initialize touchscreen 
-  ts.begin();
-
   //rotate display
   tft.setRotation(1);
 
-  ts.setRotation(1);
+  // add songs to vector 
+  songQueue.push_back(songInformation{"Hotline Bling", "Drake" , 200});
+  songQueue.push_back(songInformation{"God's Plan", "Drake" , 120});
+  songQueue.push_back(songInformation{"Talking The Hardest", "Giggs" , 320});
 
+  // draw display UI
   drawSpotifyScreen();
- 
 
+  pinMode(playButton, INPUT);
+  pinMode(nextButton, INPUT);
+  pinMode(prevButton, INPUT);
 
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-
   unsigned long currentTime = millis();
 
-  if (ts.touched()) {
-    uint16_t x, y;
-    uint8_t z;
+  // implemented deboucing
 
-    ts.readData(&x, &y, &z);
+  // play button reading
 
-    Serial.print("x = ");
-    Serial.print(x);
-    Serial.print(", y = ");
-    Serial.print(y);
-    Serial.print(", z = ");
-    Serial.println(z);
-}
+  bool playReading = digitalRead(playButton);
+
+  if (playReading != lastPlayButtonState){
+    lastPlayDebounceTime = millis();
+  }
+
+  if (millis() - lastPlayDebounceTime > debouncePlayDelay){
+    if (playReading != playButtonState){
+      playButtonState = playReading;
+
+      if (playButtonState == LOW){
+        playerState = !playerState;
+        updateControls();
+      }
+    }
+  }
+
+  lastPlayButtonState = playReading;
+
+  // next button reading 
+
+  bool nextReading = digitalRead(nextButton);
+
+  if (nextReading != lastNextButtonState){
+    lastNextDebounceTime = millis();
+  }
+
+  if (millis() - lastNextDebounceTime > debounceNextDelay){
+    if (nextReading != nextButtonState){
+      nextButtonState = nextReading;
+
+      if (nextButtonState == LOW){
+        if ((currentSong + 1) < songQueue.size()){
+        currentSong += 1;
+        }else{
+          currentSong = 0;
+        }
+        updateSongInformation();
+      
+      }
+    }
+  }
+  
+  lastNextButtonState = nextReading;
+
+  //prev button reading
+
+  bool prevReading = digitalRead(prevButton);
+
+  if (prevReading != lastPrevButtonState){
+    lastPrevDebounceTime = millis();
+  }
+
+  if (millis() - lastPrevDebounceTime > debouncePrevDelay){
+    if (prevReading != prevButtonState){
+      prevButtonState = prevReading;
+
+      if (prevButtonState == LOW){
+        if ( currentSong > 0){
+        currentSong -= 1; 
+        }else{
+          currentSong = (songQueue.size() - 1);
+        }
+        updateSongInformation();
+      }
+    }
+  }
+  
+  lastPrevButtonState = prevReading;
 
   if (Serial.available() > 0){
     Serial.println(playerState);
@@ -99,25 +190,21 @@ void loop() {
   if (currentTime - previousTime >= 1000){
     previousTime = currentTime;
     if (playerState){
-      if (currentPosition < songDuration){
+      if (currentPosition < songQueue[currentSong].songDuration){
         currentPosition += 1;
-        drawCurrentSongProgress(songDuration, currentPosition);   
+        drawCurrentSongProgress(currentPosition);   
         drawCurrentTimePosition();
         
       }
     }
   } 
-
-
-  
-
 }
 
 void drawSpotifyScreen(){
   drawHeader();
-  drawSongInformation(songName, artistName);
+  drawSongInformation();
   drawProgressBar();
-  drawCurrentSongProgress(songDuration, currentPosition);
+  drawCurrentSongProgress(currentPosition);
   drawCurrentTimePosition();
   drawCurrentSongDuration();
   drawControls();
@@ -146,18 +233,18 @@ void drawHeader(){
   tft.println("NOW PLAYING");
 }
 
-void drawSongInformation(String songName, String artistName){
+void drawSongInformation(){
 
   // draw current song artist Name
   tft.setTextSize(1);
 
   tft.setCursor(130, 90);
 
-  tft.println(songName);
+  tft.println(songQueue[currentSong].songName);
 
   tft.setCursor(130, 120);
 
-  tft.println(artistName);
+  tft.println(songQueue[currentSong].artistName);
 
 }
 
@@ -187,8 +274,8 @@ void drawCurrentTimePosition(){
 
 void drawCurrentSongDuration(){
 
-  int songMinutes = songDuration/60;
-  int songSeconds = songDuration%60;
+  int songMinutes = (songQueue[currentSong].songDuration)/60;
+  int songSeconds = (songQueue[currentSong].songDuration)%60;
 
   // draw current song duration
   tft.setCursor(220,  170);
@@ -200,10 +287,10 @@ void drawCurrentSongDuration(){
 
 }
 
-void drawCurrentSongProgress(int songDuration, int currentPosition){
+void drawCurrentSongProgress(int currentPosition){
   
   // calculate and draw current progress bar
-  int progress = ((280 * currentPosition) / songDuration) + 20; 
+  int progress = ((280 * currentPosition) / songQueue[currentSong].songDuration) + 20; 
   tft.drawLine(20,151,progress,151,ILI9341_WHITE);
 
 }
@@ -235,6 +322,8 @@ void drawControls(){
 
 void updateControls(){
 
+  // update controls state
+
   tft.fillRect(140,190, 25,20, ILI9341_BLACK);
 
   if (!playerState){     
@@ -245,4 +334,28 @@ void updateControls(){
 
     tft.fillRect(160, 190, 5, 10,ILI9341_WHITE);
   }
+}
+
+void updateSongInformation(){
+  // update song information when song change 
+  playerState = false;
+  currentPosition = 0;
+
+  updateControls();
+
+  // clear previous song information and update with current song 
+  tft.fillRect(130, 90, 120, 15, ILI9341_BLACK); // song name
+
+  tft.fillRect(130, 120, 110, 15, ILI9341_BLACK); // artist name
+
+  drawSongInformation();
+
+  // clear previous song progress
+  tft.fillRect(20,151,280,2,ILI9341_BLACK);
+  drawCurrentSongProgress(currentPosition);
+
+  // clear previous song duration and update with current song
+  tft.fillRect(220, 170, 30, 10, ILI9341_BLACK); // song duration 
+
+  drawCurrentSongDuration();
 }
