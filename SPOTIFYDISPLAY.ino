@@ -221,14 +221,14 @@ void drawHeader(){
   tft.setTextSize(2);
 
   // Set Text Cursor
-  tft.setCursor(80,30);
+  tft.setCursor(80,20);
 
   // Print Text to Screen
   tft.println("SPOTIFY DISPLAY");
 
   tft.setTextSize(1);
 
-  tft.setCursor(130, 60);
+  tft.setCursor(130, 40);
 
   tft.println("NOW PLAYING");
 }
@@ -238,11 +238,11 @@ void drawSongInformation(){
   // draw current song artist Name
   tft.setTextSize(1);
 
-  tft.setCursor(130, 90);
+  tft.setCursor(130, 150);
 
   tft.println(songQueue[currentSong].songName);
 
-  tft.setCursor(130, 120);
+  tft.setCursor(130, 165);
 
   tft.println(songQueue[currentSong].artistName);
 
@@ -251,7 +251,7 @@ void drawSongInformation(){
 void drawProgressBar(){
 
   // draw progress bar
-  tft.drawLine(20,150,300,150,ILI9341_WHITE);
+  tft.drawLine(20,180,300,180,ILI9341_WHITE);
 }
 
 void drawCurrentTimePosition(){
@@ -260,12 +260,11 @@ void drawCurrentTimePosition(){
   int currentMinutes = currentPosition/60;
   int currentSeconds = currentPosition%60;
 
-  tft.fillRect(70,170, 25,20, ILI9341_BLACK);
+  tft.fillRect(70,190, 25,20, ILI9341_BLACK);
 
    // draw current song current position
-  tft.setCursor(70, 170);
 
-  tft.setCursor(70, 170);
+  tft.setCursor(70, 190);
   tft.print(currentMinutes);
   tft.print(":");
   tft.print(currentSeconds);
@@ -278,7 +277,7 @@ void drawCurrentSongDuration(){
   int songSeconds = (songQueue[currentSong].songDuration)%60;
 
   // draw current song duration
-  tft.setCursor(220,  170);
+  tft.setCursor(220,  190);
 
 
   tft.print(songMinutes);
@@ -291,7 +290,7 @@ void drawCurrentSongProgress(int currentPosition){
   
   // calculate and draw current progress bar
   int progress = ((280 * currentPosition) / songQueue[currentSong].songDuration) + 20; 
-  tft.drawLine(20,151,progress,151,ILI9341_WHITE);
+  tft.drawLine(20,181,progress,181,ILI9341_WHITE);
 
 }
 
@@ -300,22 +299,21 @@ void drawCurrentSongProgress(int currentPosition){
 void drawControls(){
    // Draw Skip Backwards Button
 
-  tft.fillTriangle(115,195,120,190, 120,200  ,ILI9341_WHITE);
+  tft.fillTriangle(115,225,120,230, 120,220  ,ILI9341_WHITE);
 
-  tft.fillTriangle(110,195,115,190,115,200,ILI9341_WHITE);
+  tft.fillTriangle(110,225,115,230,115,220,ILI9341_WHITE);
 
-  tft.fillRect(107, 190, 3, 11,ILI9341_WHITE);
+  tft.fillRect(107, 220, 3, 11,ILI9341_WHITE);
 
   // Draw Pause or Play Button
-  tft.fillTriangle(160,195,150,190,150,200,ILI9341_WHITE);
+  tft.fillTriangle(160,225,150,220,150,230,ILI9341_WHITE);
   
   // Draw Skip Forwards Button
-  
-  tft.fillTriangle(195,195,190,190,190,200,ILI9341_WHITE);
+  tft.fillTriangle(195,225,190,220,190,230,ILI9341_WHITE);
 
-  tft.fillTriangle(200,195,195,190,195,200,ILI9341_WHITE);
+  tft.fillTriangle(200,225,195,220,195,230,ILI9341_WHITE);
 
-  tft.fillRect(200,190,3,11,ILI9341_WHITE);
+  tft.fillRect(200,220,3,11,ILI9341_WHITE);
 
 
 }
@@ -324,15 +322,16 @@ void updateControls(){
 
   // update controls state
 
-  tft.fillRect(140,190, 25,20, ILI9341_BLACK);
+  tft.fillRect(140,220, 25,20, ILI9341_BLACK);
 
   if (!playerState){     
-    tft.fillTriangle(160,195,150,190,150,200,ILI9341_WHITE);
+  tft.fillTriangle(160,225,150,220,150,230,ILI9341_WHITE);
+
   }
   else{
-    tft.fillRect(150, 190, 5, 10,ILI9341_WHITE);
+    tft.fillRect(150, 220, 5, 10,ILI9341_WHITE);
 
-    tft.fillRect(160, 190, 5, 10,ILI9341_WHITE);
+    tft.fillRect(160, 220, 5, 10,ILI9341_WHITE);
   }
 }
 
@@ -344,18 +343,18 @@ void updateSongInformation(){
   updateControls();
 
   // clear previous song information and update with current song 
-  tft.fillRect(130, 90, 120, 15, ILI9341_BLACK); // song name
+  tft.fillRect(130, 150, 120, 15, ILI9341_BLACK); // song name
 
-  tft.fillRect(130, 120, 110, 15, ILI9341_BLACK); // artist name
+  tft.fillRect(130, 165, 110, 15, ILI9341_BLACK); // artist name
 
   drawSongInformation();
 
-  // clear previous song progress
-  tft.fillRect(20,151,280,2,ILI9341_BLACK);
+  // clear previous song progress bar
+  tft.fillRect(20,181,280,2,ILI9341_BLACK);
   drawCurrentSongProgress(currentPosition);
 
   // clear previous song duration and update with current song
-  tft.fillRect(220, 170, 30, 10, ILI9341_BLACK); // song duration 
+  tft.fillRect(220, 190, 30, 10, ILI9341_BLACK); // song duration 
 
   drawCurrentSongDuration();
 }
