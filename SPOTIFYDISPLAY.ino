@@ -1,8 +1,11 @@
-
+#include <WiFi.h>
 #include <SPI.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_ILI9341.h>
 #include <vector>
+#include <secrets.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
 
 using namespace std;
 
@@ -158,6 +161,10 @@ void setup() {
 
   Serial.begin(115200);
 
+  // Wifi Configurations
+
+  connectToWiFi();
+
   SPI.begin(SCK,MISO,MOSI,CS);
 
   // Start the Display
@@ -178,9 +185,12 @@ void setup() {
   pinMode(nextButton, INPUT);
   pinMode(prevButton, INPUT);
 
+  requestAccessToken();
+
 }
 
 void loop() {
+
   // put your main code here, to run repeatedly:
   unsigned long currentTime = millis();
 
@@ -454,3 +464,8 @@ void updateSongInformation(){
 void drawBitMap(){
   tft.drawBitmap(110, 50 , epd_bitmap_Might_Delete_Later , 100 , 100, ILI9341_WHITE);
 }
+
+
+
+
+
