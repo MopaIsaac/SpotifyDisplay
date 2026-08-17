@@ -187,6 +187,8 @@ void setup() {
 
   requestAccessToken();
 
+  authURL();
+
 }
 
 void loop() {

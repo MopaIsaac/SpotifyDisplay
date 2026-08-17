@@ -15,6 +15,8 @@
 // Spotify Server 
 const char* serverName = "https://accounts.spotify.com/api/token";
 
+std::string codeVerifier;
+
 bool isConnected(); // returns if connected to wifi
 void postRequest(); // 
 void getArtistInformation(String accessToken); // get spotify artist information
@@ -108,6 +110,33 @@ void requestAccessToken(){
   http.end();
 }
 
+
+
+void authURL(){
+
+  String responseType = "code";
+  String codeChallengeMethod = "S256";
+
+  String verifierArduino = generateRandomString(64);
+
+  codeVerifier = verifierArduino.c_str();
+
+  std::string codeChallenge = generateCodeChallenge(codeVerifier);
+
+  String challengeArduino = String(codeChallenge.c_str());
+
+  String url = "https://accounts.spotify.com/authorize?";
+
+  url += "client_id=" + urlEncode(CLIENT_ID);
+  url += "&response_type=" + urlEncode(responseType);
+  url += "&redirect_uri=" + urlEncode(REDIRECT_URI);
+  url += "&scope=" + urlEncode(SCOPE);
+  url += "&code_challenge_method=" + urlEncode(codeChallengeMethod);
+  url += "&code_challenge=" + urlEncode(challengeArduino);
+
+  Serial.println(url);  
+
+}
 
 
 
@@ -260,5 +289,25 @@ std::string generateCodeChallenge(
 }
 
 
+String urlEncode(String input){
 
+  const char hex[] = "0123456789ABCDEF";
+  String encoded = "";
+
+  for (int i = 0 ; i < input.length() ; i++ ){
+
+    unsigned char c = input[i];
+
+    if (isalnum(c) || c == '-' || c == '.' || c == '_' || c == '~'){
+      encoded += char(c);
+    }else{
+        encoded += '%';
+        encoded += hex[(c >> 4) & 0x0F];
+        encoded += hex[c & 0x0F];
+    }
+    
+  } 
+
+  return encoded;
+}
 
