@@ -6,16 +6,26 @@
 #include "mbedtls/base64.h"
 #include "stdlib.h"
 #include <secrets.h>
-
+#include "SPOTIFYBACKEND.h"
 
 #include <vector>
 #include <string>
+
+#include <Preferences.h>
+
+Preferences preferences;
 
 
 // Spotify Server 
 const char* serverName = "https://accounts.spotify.com/api/token";
 
 std::string codeVerifier;
+
+String accessToken;
+String refreshToken;
+unsigned long tokenReceivedAt = millis();
+unsigned long tokenExpiresIn = 70;
+
 
 bool isConnected(); // returns if connected to wifi
 void postRequest(); // 
@@ -57,7 +67,6 @@ void connectToWiFi(){
 
   while (WiFi.status() != WL_CONNECTED){
     Serial.print(". ");
-    Serial.println(" ");
   }
 
   Serial.print("Connected: ");
@@ -102,6 +111,8 @@ void requestAccessToken(){
     String tokenType = doc["token_type"].as<String>();
     int expiresIn = doc["expires_in"];
 
+    tokenReceivedAt = millis();
+
     Serial.println(accessToken);
     Serial.println(tokenType);
     Serial.println(expiresIn);
@@ -112,7 +123,71 @@ void requestAccessToken(){
 
 
 
-void authURL(){
+void exchangeCodeForToken(){
+  WiFiClientSecure client;
+  HTTPClient http;
+
+  client.setInsecure();
+
+  String url = "https://accounts.spotify.com/api/token";
+
+  http.begin(client, url);
+
+  http.addHeader("Content-Type","application/x-www-form-urlencoded");
+
+  String httpRequestData = authRequestData();
+
+  int httpResponseCode = http.POST(httpRequestData);
+
+  Serial.print("HTTP code: ");
+  Serial.println(httpResponseCode);
+if (httpResponseCode >= 200 && httpResponseCode < 300) {
+
+    String payload = http.getString();
+
+    JsonDocument doc;
+
+    DeserializationError err =
+        deserializeJson(doc, payload);
+
+    if (err) {
+        Serial.print("JSON parsing failed: ");
+        Serial.println(err.c_str());
+    }
+    else {
+
+        accessToken =
+            doc["access_token"].as<String>();
+
+        refreshToken =
+            doc["refresh_token"].as<String>();
+
+        tokenExpiresIn =
+            doc["expires_in"];
+
+        tokenReceivedAt = millis();
+
+        saveRefreshToken(refreshToken);
+
+        Serial.println("Refresh token saved!");
+        Serial.println("Got access Token");
+        Serial.println("Got refresh Token");
+    }
+}
+else {
+
+    Serial.print("Token exchange failed: ");
+    Serial.println(httpResponseCode);
+
+    Serial.println(http.getString());
+}
+
+  http.end();
+}
+
+
+
+String authURL(){
 
   String responseType = "code";
   String codeChallengeMethod = "S256";
@@ -134,7 +209,23 @@ void authURL(){
   url += "&code_challenge_method=" + urlEncode(codeChallengeMethod);
   url += "&code_challenge=" + urlEncode(challengeArduino);
 
-  Serial.println(url);  
+  return url;  
+
+}
+
+String authRequestData(){
+
+  String requestData = "grant_type=authorization_code";
+
+  requestData += "&code=" + urlEncode(AUTHORIZATION_CODE);
+
+  requestData += "&redirect_uri=" + urlEncode(REDIRECT_URI);
+
+  requestData += "&client_id=" + urlEncode(CLIENT_ID);
+
+  requestData += "&code_verifier=" + urlEncode(VERIFIER);
+
+  return requestData;
 
 }
 
@@ -311,3 +402,124 @@ String urlEncode(String input){
   return encoded;
 }
 
+
+
+
+// refreshes
+
+String refreshRequestData(String refreshToken) {
+
+  String data = "grant_type=refresh_token";
+
+  data += "&refresh_token=" + urlEncode(refreshToken);
+  data += "&client_id=" + urlEncode(CLIENT_ID);
+
+  return data;
+}
+
+void refreshAccessToken(String refreshToken) {
+
+  WiFiClientSecure client;
+  HTTPClient http;
+
+  client.setInsecure();
+
+  String url =
+    "https://accounts.spotify.com/api/token";
+
+  http.begin(client, url);
+
+  http.addHeader(
+    "Content-Type",
+    "application/x-www-form-urlencoded"
+  );
+
+  String requestData =
+    refreshRequestData(refreshToken);
+
+  int httpCode =
+    http.POST(requestData);
+
+  Serial.print("HTTP code: ");
+  Serial.println(httpCode);
+
+  if (httpCode >= 200 && httpCode < 300) {
+
+    String payload = http.getString();
+
+    JsonDocument doc;
+
+    DeserializationError err =
+      deserializeJson(doc, payload);
+
+    if (err) {
+      Serial.print("JSON error: ");
+      Serial.println(err.c_str());
+    }
+    else {
+
+      accessToken = doc["access_token"].as<String>();
+
+      if (!doc["refresh_token"].isNull()) {
+        refreshToken = doc["refresh_token"].as<String>();
+
+        saveRefreshToken(refreshToken);
+      }
+
+      tokenExpiresIn = doc["expires_in"];
+      tokenReceivedAt = millis();
+
+      Serial.println("Access token refreshed!");
+      Serial.print("Expires in: ");
+      Serial.println(tokenExpiresIn);
+    }
+
+  }
+  else {
+
+    Serial.println(http.getString());
+  }
+
+  http.end();
+}
+
+
+bool tokenNeedsRefresh() {
+
+  if (refreshToken.length() == 0) {
+    return false;
+  }
+
+  if (tokenExpiresIn <= 60) {
+    return false;
+  }
+
+  unsigned long age =
+      millis() - tokenReceivedAt;
+
+  return age >=
+      (tokenExpiresIn - 60) * 1000UL;
+}
+
+
+
+void saveRefreshToken(String token) {
+
+  preferences.begin("spotify", false);
+
+  preferences.putString("refresh", token);
+
+  preferences.end();
+}
+
+String loadRefreshToken() {
+
+  preferences.begin("spotify", true);
+
+  String token =
+      preferences.getString("refresh", "");
+
+  preferences.end();
+
+  return token;
+}

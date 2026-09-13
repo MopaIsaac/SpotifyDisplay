@@ -1,3 +1,14 @@
 secrets.h
 
 Backend.ino
+
+# Arduino build files
+build/
+*.bin
+*.elf
+*.map
+
+# Editor / OS files
+.vscode/
+.DS_Store
+Thumbs.db

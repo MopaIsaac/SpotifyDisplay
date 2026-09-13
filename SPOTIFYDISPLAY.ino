@@ -6,6 +6,10 @@
 #include <secrets.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include "SPOTIFYBACKEND.h"
+#include "SPOTIFYPLAYER.h"
+
+
 
 using namespace std;
 
@@ -144,24 +148,11 @@ bool playerState = false;
 
 unsigned long previousTime = 0;
 
-// song structure
-struct songInformation{
-  String songName;
-  String artistName;
-  int songDuration;
-
-};
-
-// vector object to store songs 
-std::vector<songInformation> songQueue;
-
-
 void setup() {
   // put your setup code here, to run once:
 
-  Serial.begin(115200);
-
   // Wifi Configurations
+  Serial.begin(115200);
 
   connectToWiFi();
 
@@ -173,25 +164,53 @@ void setup() {
   //rotate display
   tft.setRotation(1);
 
-  // add songs to vector 
-  songQueue.push_back(songInformation{"Hotline Bling", "Drake" , 200});
-  songQueue.push_back(songInformation{"God's Plan", "Drake" , 120});
-  songQueue.push_back(songInformation{"Talking The Hardest", "Giggs" , 320});
-
-  // draw display UI
-  drawSpotifyScreen();
-
   pinMode(playButton, INPUT);
   pinMode(nextButton, INPUT);
   pinMode(prevButton, INPUT);
 
-  requestAccessToken();
+  // requestAccessToken();
 
-  authURL();
+  // Serial.println("Authorization URL: ");
+  // Serial.println(authURL());
 
+  // Serial.print("Code verifier: ");
+  // Serial.println(codeVerifier.c_str());
+
+
+  refreshToken = loadRefreshToken();
+
+  Serial.print("Saved token length: ");
+  Serial.println(refreshToken.length());
+
+  if (refreshToken.length() > 0) {
+
+    Serial.println("Saved refresh token found");
+
+    refreshAccessToken(refreshToken);
+
+  } else {
+
+    Serial.println("Authorization required");
+  }
+
+  getPlayBackState();
+  getCurrentPlayingSong();
+
+  currentPosition = currentTrack.progressMs;
+  playerState = currentTrack.isPlaying;
+
+  drawSpotifyScreen();
 }
 
 void loop() {
+
+
+  if (refreshToken.length() > 0 && tokenNeedsRefresh()) {
+
+  Serial.println("Token needs refresh!");
+
+  refreshAccessToken(refreshToken);
+}
 
   // put your main code here, to run repeatedly:
   unsigned long currentTime = millis();
@@ -211,8 +230,15 @@ void loop() {
       playButtonState = playReading;
 
       if (playButtonState == LOW){
-        playerState = !playerState;
-        updateControls();
+        if (playerState) {
+        pausePlayState();
+        playerState = false;
+      }
+      else {
+        playPlayState();
+        playerState = true;
+      }
+      updateControls();
       }
     }
   }
@@ -232,11 +258,7 @@ void loop() {
       nextButtonState = nextReading;
 
       if (nextButtonState == LOW){
-        if ((currentSong + 1) < songQueue.size()){
-        currentSong += 1;
-        }else{
-          currentSong = 0;
-        }
+        skipToNext();
         updateSongInformation();
       
       }
@@ -258,11 +280,7 @@ void loop() {
       prevButtonState = prevReading;
 
       if (prevButtonState == LOW){
-        if ( currentSong > 0){
-        currentSong -= 1; 
-        }else{
-          currentSong = (songQueue.size() - 1);
-        }
+        skipToPrevious();
         updateSongInformation();
       }
     }
@@ -292,11 +310,15 @@ void loop() {
   if (currentTime - previousTime >= 1000){
     previousTime = currentTime;
     if (playerState){
-      if (currentPosition < songQueue[currentSong].songDuration){
-        currentPosition += 1;
-        drawCurrentSongProgress(currentPosition);   
-        drawCurrentTimePosition();
-        
+      if (currentPosition < currentTrack.durationMs) {
+          currentPosition += 1000;
+
+          if (currentPosition > currentTrack.durationMs) {
+              currentPosition = currentTrack.durationMs;
+          }
+
+          drawCurrentSongProgress(currentPosition);
+          drawCurrentTimePosition();
       }
     }
   } 
@@ -338,16 +360,16 @@ void drawHeader(){
 
 void drawSongInformation(){
 
-  // draw current song artist Name
+  // draw current song and artist name
   tft.setTextSize(1);
 
   tft.setCursor(130, 150);
 
-  tft.println(songQueue[currentSong].songName);
+  tft.println(currentTrack.songName);
 
   tft.setCursor(130, 165);
 
-  tft.println(songQueue[currentSong].artistName);
+  tft.println(currentTrack.artistName);
 
 }
 
@@ -360,8 +382,8 @@ void drawProgressBar(){
 void drawCurrentTimePosition(){
 
   
-  int currentMinutes = currentPosition/60;
-  int currentSeconds = currentPosition%60;
+  int currentMinutes = (currentPosition/1000)/60;
+  int currentSeconds = (currentPosition/1000)%60;
 
   tft.fillRect(70,190, 25,20, ILI9341_BLACK);
 
@@ -370,14 +392,21 @@ void drawCurrentTimePosition(){
   tft.setCursor(70, 190);
   tft.print(currentMinutes);
   tft.print(":");
+
+  if (currentSeconds < 10) {
+      tft.print("0");
+  }
+
   tft.print(currentSeconds);
 
 }
 
 void drawCurrentSongDuration(){
 
-  int songMinutes = (songQueue[currentSong].songDuration)/60;
-  int songSeconds = (songQueue[currentSong].songDuration)%60;
+
+
+  int songMinutes = (currentTrack.durationMs/1000)/60;
+  int songSeconds = (currentTrack.durationMs/1000)%60;
 
   // draw current song duration
   tft.setCursor(220,  190);
@@ -391,9 +420,15 @@ void drawCurrentSongDuration(){
 
 void drawCurrentSongProgress(int currentPosition){
   
-  // calculate and draw current progress bar
-  int progress = ((280 * currentPosition) / songQueue[currentSong].songDuration) + 20; 
-  tft.drawLine(20,181,progress,181,ILI9341_WHITE);
+    if (currentTrack.durationMs <= 0) {
+        return;
+    }
+
+    int progress =
+        ((280 * (currentPosition / 1000)) /
+        (currentTrack.durationMs / 1000)) + 20;
+
+    tft.drawLine(20, 181, progress, 181, ILI9341_WHITE);
 
 }
 
@@ -440,15 +475,18 @@ void updateControls(){
 
 void updateSongInformation(){
   // update song information when song change 
-  playerState = false;
-  currentPosition = 0;
+  getCurrentPlayingSong();
+  currentPosition = currentTrack.progressMs;
+  playerState = currentTrack.isPlaying;
 
   updateControls();
 
   // clear previous song information and update with current song 
-  tft.fillRect(130, 150, 120, 15, ILI9341_BLACK); // song name
+  tft.fillRect(130, 150, 120, 15, ILI9341_BLACK); // artist name
+  tft.drawRect(130, 150, 120, 15, ILI9341_RED); // artist name
 
-  tft.fillRect(130, 165, 110, 15, ILI9341_BLACK); // artist name
+  tft.fillRect(130, 165, 110, 15, ILI9341_BLACK); // song name
+  tft.drawRect(130, 165, 110, 15, ILI9341_RED); // song name
 
   drawSongInformation();
 
